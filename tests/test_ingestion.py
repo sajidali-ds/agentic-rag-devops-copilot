@@ -17,10 +17,12 @@ def test_html_loader_strips_scripts(tmp_path):
     assert "Body text" in text and "evil" not in text
 
 
+
 def test_text_loader(tmp_path):
     f = tmp_path / "a.txt"
-    f.write_text("héllo")
+    f.write_text("héllo", encoding="utf-8")
     assert parse_text(str(f)) == "héllo"
+
 
 
 def test_unsupported_extension_is_skipped(tmp_path):
