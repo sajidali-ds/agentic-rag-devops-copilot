@@ -30,5 +30,5 @@ class AgentState(TypedDict, total=False):
     final_answer: str
 
     # Presentation
-    plan: List[str]  
+    plan: List[str]
     status: str

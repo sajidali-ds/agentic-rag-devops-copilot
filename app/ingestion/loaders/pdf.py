@@ -3,8 +3,8 @@ from pypdf import PdfReader
 
 
 def parse_pdf(file_path: str) -> str:
-    
-    
+
+
     with logfire.span("PDF Parsing (local)", filename=file_path):
         try:
             reader = PdfReader(file_path)

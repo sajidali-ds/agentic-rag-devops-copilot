@@ -1,11 +1,11 @@
 import logfire
 import pandas as pd
 from openai import AsyncOpenAI
-
-
-from portkey_ai import PORTKEY_GATEWAY_URL
 from ragas.llms import llm_factory
 from ragas.embeddings import HuggingFaceEmbeddings
+from portkey_ai import PORTKEY_GATEWAY_URL
+
+
 from ragas.metrics.collections import (
     Faithfulness,
     AnswerRelevancy,
@@ -17,8 +17,8 @@ from ragas.metrics.collections import (
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 JUDGE_MODEL = "openai/gpt-oss-120b"
 COOLDOWN_STANDARD = 62
-COOLDOWN_MINI = 40       
-GENERAL_BATCH_SIZE = 1  
+COOLDOWN_MINI = 40
+GENERAL_BATCH_SIZE = 1
                          # so batch>1 stacks multiple samples' async calls inside the same second
 CONTEXT_TRUNCATE = 300  # chars per context chunk — reduces single request from ~7,700 to ~400 tokens
 CONTEXT_LIMIT = 2       # number of context chunks passed to RAGAS per sample
@@ -28,18 +28,35 @@ def _build_judge():
     from dotenv import load_dotenv
 
     load_dotenv()
+
     portkey_key = os.environ["PORTKEY_API_KEY"]
     slug = os.getenv("GROQ_SLUG", "my-groq")
+    model_name = os.getenv("JUDGE_MODEL", JUDGE_MODEL)
+    judge_model = f"@{slug}/{model_name}"
+
     client = AsyncOpenAI(
         api_key=portkey_key,
         base_url=PORTKEY_GATEWAY_URL,
         default_headers={
             "x-portkey-api-key": portkey_key,
-            "x-portkey-metadata": '{"feature":"rag-evals","environment":"dev"}',
+            "x-portkey-metadata": (
+                '{"feature":"rag-evals","environment":"dev"}'
+            ),
         },
     )
 
-    judge_model = f"@{slug}/{os.getenv('JUDGE_MODEL', JUDGE_MODEL)}"
+    judge_llm = llm_factory(
+        model=judge_model,
+        client=client,
+    )
+
+    ragas_embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
+    )
+
+    return judge_llm, ragas_embeddings
+
+
 def _prep_samples(golden_dataset: dict) -> list:
     """
     Returns only samples with actual_response populated.

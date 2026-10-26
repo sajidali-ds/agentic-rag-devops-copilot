@@ -2,7 +2,7 @@ import logfire
 from unstructured.partition.auto import partition
 
 def parse_office(file_path: str):
-   
+
     with logfire.span("📄 Office Document Parsing", filename=file_path):
         try:
             # Unstructured automatically detects if it's docx or pptx

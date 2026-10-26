@@ -7,7 +7,7 @@ from app.config import settings
 
 
 class MemoryStore:
-    
+
 
     kind = "memory"
 

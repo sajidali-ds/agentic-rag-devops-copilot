@@ -1,4 +1,3 @@
-import logfire
 from langchain_openai import ChatOpenAI
 from portkey_ai import PORTKEY_GATEWAY_URL, Portkey, createHeaders
 
@@ -28,7 +27,7 @@ def _headers(feature: str) -> dict:
 
 
 def get_langchain_llm(feature: str = "rag", max_tokens: int = 1000, model: str | None = None) -> ChatOpenAI:
-    
+
     model = model or settings.primary_model
     extra = {}
     if settings.LLM_REASONING_EFFORT and "gpt-oss" in model:
