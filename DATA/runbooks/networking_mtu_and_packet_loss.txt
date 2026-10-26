@@ -1,0 +1,20 @@
+RUNBOOK: MTU mismatch, fragmentation and "small requests work, big ones hang"
+NOTE: Starter runbook written for this project from general operational practice. Verify details against your platform/version before acting in production.
+
+SYMPTOMS
+Pings and small HTTP requests succeed, but large downloads, TLS handshakes with big certificates, or file transfers stall or time out. Often appears only across nodes (overlay network) or through VPN/IPsec/WireGuard tunnels.
+
+WHY
+Encapsulation adds headers, so the usable MTU inside the tunnel is smaller than the physical MTU. Typical overhead on IPv4: VXLAN about 50 bytes, IP-in-IP about 20 bytes, WireGuard about 60 bytes, IPsec 50-70 bytes. On a 1500-byte network, pod interfaces using VXLAN should be about 1450. If the pod MTU is larger than the path can carry and the DF bit is set while ICMP "fragmentation needed" is filtered, packets are silently dropped (a path MTU discovery black hole).
+
+HOW TO TEST
+- Show interface MTUs: ip link show.
+- Probe the path without fragmentation: ping -M do -s <size> <peer-ip>. ICMP payload = MTU - 28 (20 IP + 8 ICMP). For MTU 1500 use size 1472; for 1450 use 1422. Increase until it fails.
+- tracepath <host> reports the discovered path MTU.
+- Capture drops: tcpdump -ni <iface> icmp and look for "need to frag".
+
+FIXES
+- Set the CNI / tunnel MTU to physical MTU minus the encapsulation overhead, consistently on all nodes, then restart the affected pods.
+- Allow ICMP type 3 code 4 (fragmentation needed) through firewalls and security groups.
+- Enable TCP MSS clamping on the tunnel or gateway as a workaround.
+- Jumbo frames (9000) on the physical network give headroom but must be enabled end to end.

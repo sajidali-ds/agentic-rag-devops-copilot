@@ -1,0 +1,24 @@
+RUNBOOK: Container OOMKilled (exit code 137)
+NOTE: Starter runbook written for this project from general operational practice. Verify details against your platform/version before acting in production.
+
+SYMPTOMS
+kubectl describe pod shows "Last State: Terminated, Reason: OOMKilled, Exit Code: 137". The pod may also be in CrashLoopBackOff because it keeps getting killed after restart.
+
+HOW MEMORY LIMITS WORK
+The container memory limit is enforced by the Linux kernel through cgroups. When the container's memory use reaches the limit and the kernel cannot reclaim enough, the OOM killer terminates a process in the container. Requests are used only for scheduling; limits are what cause OOM kills. Pods with no limits can still be killed when the NODE runs out of memory; BestEffort pods are evicted first, then Burstable pods exceeding their requests, then Guaranteed pods.
+
+TRIAGE
+1. Confirm the reason: kubectl describe pod <pod> -n <ns> (Last State / Reason).
+2. Compare usage to the limit: kubectl top pod <pod> -n <ns> --containers and kubectl get pod <pod> -n <ns> -o jsonpath='{.spec.containers[*].resources}'. kubectl top shows the working set, which is what the OOM decision is most related to.
+3. Check whether it is a node-level OOM: kubectl describe node <node> (MemoryPressure) and dmesg on the node for "Out of memory: Kill process".
+4. Look at the memory graph over time: steady growth suggests a leak; spikes at a specific action suggest a large batch or payload.
+
+FIXES
+- Raise the memory limit (and request) to match the real working set plus headroom. Use the observed peak, not the average.
+- Runtime heap sizing: for the JVM set -XX:MaxRAMPercentage (for example 70) so the heap plus metaspace and thread stacks fit under the container limit; for Node.js set --max-old-space-size below the limit.
+- Reduce memory: stream instead of loading whole files, cap caches, limit concurrency or batch size.
+- Fix leaks found by profiling (heap dumps, pprof, tracemalloc).
+- For Guaranteed QoS set requests equal to limits so the pod is evicted last under node pressure.
+
+NOT A FIX
+Removing the limit hides the problem and risks taking down the node and neighbouring pods.

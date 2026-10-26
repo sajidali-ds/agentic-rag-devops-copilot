@@ -1,0 +1,26 @@
+RUNBOOK: Node NotReady, node pressure and evictions
+NOTE: Starter runbook written for this project from general operational practice. Verify details against your platform/version before acting in production.
+
+SYMPTOMS
+kubectl get nodes shows NotReady; pods on the node become Unknown/Terminating; events show NodeNotReady, Evicted, or "The node was low on resource".
+
+NODE CONDITIONS
+kubectl describe node <node> lists Ready, MemoryPressure, DiskPressure, PIDPressure and NetworkUnavailable. A condition True other than Ready points to the cause.
+
+WHY A NODE GOES NotReady
+- kubelet stopped or crashed: on the node run systemctl status kubelet and journalctl -u kubelet --since "15 min ago".
+- Container runtime down (containerd/CRI-O): systemctl status containerd.
+- Network partition between node and API server, or expired kubelet client certificate.
+- Severe resource exhaustion (CPU starvation, memory, disk full) making kubelet miss its heartbeat (node lease renewals).
+
+EVICTION THRESHOLDS (kubelet defaults)
+memory.available < 100Mi, nodefs.available < 10%, imagefs.available < 15%, nodefs.inodesFree < 5%. When crossed, kubelet evicts pods: BestEffort first, then Burstable pods using more than requested, then Guaranteed.
+
+WHAT HAPPENS TO PODS
+When a node becomes NotReady/unreachable, pods get default tolerations of 300 seconds (tolerationSeconds=300) before they are evicted and rescheduled elsewhere. Pods with local state or RWO volumes may need the volume detached first.
+
+FIXES
+- Disk pressure: clean images and logs (crictl rmi --prune, rotate logs), enlarge the disk, set ephemeral-storage requests/limits.
+- Memory pressure: set memory requests/limits correctly, move workloads, add nodes.
+- Restart kubelet only after reading its logs; a restart does not fix the underlying cause.
+- If the node is unrecoverable: drain (kubectl drain <node> --ignore-daemonsets --delete-emptydir-data) when reachable, otherwise delete the Node object after confirming the machine is gone.

@@ -1,0 +1,29 @@
+RUNBOOK: Kubernetes pod in CrashLoopBackOff
+NOTE: Starter runbook written for this project from general operational practice. Verify details against your platform/version before acting in production.
+
+WHAT IT MEANS
+CrashLoopBackOff is not an error by itself. It means the container starts, exits, and kubelet restarts it with an exponential back-off delay (10s, 20s, 40s ... capped at 5 minutes). The delay resets after the container has run successfully for 10 minutes. The real cause is whatever makes the container exit.
+
+TRIAGE ORDER
+1. Read the last termination state: kubectl describe pod <pod> -n <ns>. Look at "Last State", "Reason" and "Exit Code".
+2. Read the logs of the previous (crashed) container, not the current one: kubectl logs <pod> -n <ns> --previous.
+3. Check events: kubectl get events -n <ns> --sort-by=.lastTimestamp.
+
+EXIT CODE HINTS
+- 1: generic application error; the logs show why (bad config, failed dependency, unhandled exception).
+- 127: command not found; the image entrypoint or args are wrong.
+- 126: command found but not executable.
+- 137: SIGKILL, usually OOMKilled (see the OOMKilled runbook) or killed after the termination grace period.
+- 139: segmentation fault in native code.
+- 143: SIGTERM; normal during rollouts, suspicious if the container exits on its own.
+
+COMMON CAUSES AND FIXES
+- Missing or wrong environment variable, ConfigMap or Secret value: fix the reference; a missing key shows CreateContainerConfigError instead.
+- Dependency not ready at startup (database, message broker): add retry/back-off in the app or an init container that waits for the dependency.
+- Liveness probe kills a slow-starting app: add a startupProbe or increase initialDelaySeconds / failureThreshold. A probe failing shows "Liveness probe failed" in events.
+- Memory limit too low: container is OOMKilled (exit 137); raise the limit or reduce usage.
+- Wrong command/args or missing binary in the image: verify with kubectl get pod <pod> -o yaml and test the image locally.
+- Read-only root filesystem or wrong securityContext: the app fails writing to a path; mount an emptyDir for writable paths.
+
+IF LOGS ARE EMPTY
+The process may die before logging. Run the image with an overridden command (for example sleep 3600) in a debug copy of the pod and start the app manually to see the failure.

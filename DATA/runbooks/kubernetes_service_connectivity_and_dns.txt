@@ -1,0 +1,28 @@
+RUNBOOK: Service unreachable, connection refused, timeouts and DNS failures
+NOTE: Starter runbook written for this project from general operational practice. Verify details against your platform/version before acting in production.
+
+REQUEST PATH
+client pod -> DNS lookup (CoreDNS) -> Service ClusterIP -> kube-proxy rules (iptables or IPVS) -> Endpoints -> backend pod IP:targetPort. Debug in this order.
+
+STEP 1 DNS
+- kubectl -n kube-system get pods -l k8s-app=kube-dns (CoreDNS must be Running/Ready) and kubectl -n kube-system logs -l k8s-app=kube-dns.
+- From the client pod: nslookup <svc>.<ns>.svc.cluster.local. NXDOMAIN means the Service name or namespace is wrong; timeouts to the DNS Service mean traffic to port 53 is blocked (NetworkPolicy, CNI problem).
+- The default ndots:5 makes short external names try several search domains first; use fully qualified names with a trailing dot to reduce lookups.
+
+STEP 2 ENDPOINTS
+- kubectl get endpoints <svc> -n <ns>. An empty list is the most common cause of "connection refused" via a Service.
+- Empty endpoints: the Service selector does not match pod labels (kubectl get pods --show-labels), or pods are not Ready (readiness probe failing).
+
+STEP 3 PORTS
+- Service port is what clients use; targetPort must equal the port the container really listens on. Check kubectl describe svc <svc>.
+- The app must listen on 0.0.0.0, not 127.0.0.1, to be reachable from other pods.
+
+STEP 4 NETWORK POLICY
+- kubectl get networkpolicy -n <ns>. A default-deny policy blocks traffic unless ingress (on the backend) AND egress (on the client, including DNS to port 53) are allowed.
+
+CONNECTION REFUSED vs TIMEOUT
+- refused: reached the host, nothing listening (wrong port, app down, no endpoints).
+- timeout: packets dropped (NetworkPolicy, firewall, routing, MTU) or the backend is hung.
+
+TEST TOOLS
+kubectl run tmp-debug --rm -it --image=busybox --restart=Never -n <ns> -- sh then use nslookup, wget -qO- http://<svc>:<port> and nc -zv <host> <port>. This creates a temporary pod.

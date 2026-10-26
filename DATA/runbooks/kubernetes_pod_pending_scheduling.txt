@@ -1,0 +1,20 @@
+RUNBOOK: Pod stuck in Pending (FailedScheduling)
+NOTE: Starter runbook written for this project from general operational practice. Verify details against your platform/version before acting in production.
+
+WHAT IT MEANS
+The pod was accepted by the API server but the scheduler could not place it on any node. The reason is in the Events of kubectl describe pod <pod> -n <ns>, for example: "0/3 nodes are available: 3 Insufficient memory."
+
+READING THE MESSAGE
+- "Insufficient cpu" / "Insufficient memory": the pod's resource REQUESTS do not fit in the free ALLOCATABLE resources of any node. Allocatable is lower than capacity because system and kubelet reservations are subtracted. Compare with kubectl describe node <node> (section "Allocated resources") and lower the pod requests, add nodes, or enable cluster autoscaling.
+- "had untolerated taint": nodes carry taints the pod does not tolerate (for example control-plane or dedicated-node taints). Add a toleration or use other nodes.
+- "didn't match Pod's node affinity/selector": nodeSelector or affinity matches no node; check node labels with kubectl get nodes --show-labels.
+- "didn't match pod anti-affinity rules" or topology spread: constraints cannot be satisfied with the current node count.
+- "unbound immediate PersistentVolumeClaims" / "volume node affinity conflict": the PVC is not bound or the volume lives in a different zone. Check kubectl get pvc,pv and the StorageClass volumeBindingMode (WaitForFirstConsumer delays binding until scheduling).
+- "node(s) were unschedulable": nodes are cordoned (kubectl get nodes shows SchedulingDisabled).
+
+ALSO CHECK
+- ResourceQuota / LimitRange in the namespace: kubectl get resourcequota -n <ns>. Quota violations usually prevent pod creation (visible on the ReplicaSet events) rather than leaving it Pending.
+- Pending without any FailedScheduling event can mean the pod is waiting for a scheduler or the namespace has a pending admission decision.
+
+QUICK MATH
+Requests of all pods on a node are summed; a new pod fits only if node allocatable minus summed requests is at least its request for both CPU and memory.

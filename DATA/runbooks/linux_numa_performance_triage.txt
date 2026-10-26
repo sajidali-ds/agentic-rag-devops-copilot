@@ -1,0 +1,24 @@
+RUNBOOK: NUMA-related latency and throughput problems (Linux, DPDK, high-speed NICs)
+NOTE: Starter runbook written for this project from general operational practice. Verify details against your platform/version before acting in production.
+
+WHEN TO SUSPECT NUMA
+Throughput or latency is worse than expected on multi-socket servers, varies between runs, or drops when a workload or NIC interrupt handling lands on a different CPU socket than its memory or NIC.
+
+INSPECT THE TOPOLOGY
+- numactl --hardware shows NUMA nodes, CPUs per node, memory per node and the distance matrix.
+- lscpu lists NUMA node CPU ranges.
+- Which node a NIC belongs to: cat /sys/class/net/<iface>/device/numa_node (-1 means unknown/single node).
+- Per-process memory placement: numastat -p <pid> shows how much memory is local vs remote.
+
+WHY IT MATTERS
+Accessing memory attached to another socket (remote access) goes over the inter-socket link and has higher latency and lower bandwidth than local access. Packet processing is most efficient when the NIC, the polling CPU cores, and the memory buffers are all on the same NUMA node.
+
+FIXES
+- Pin the process and its memory to the NIC's node: numactl --cpunodebind=<n> --membind=<n> <command>.
+- Align IRQ affinity and receive queues with cores of the NIC's NUMA node.
+- Allocate hugepages on the right node for DPDK or large buffers.
+- In Kubernetes use the CPU Manager static policy with Guaranteed pods (integer CPU requests equal to limits) and the Topology Manager (single-numa-node policy) so CPUs, devices and memory are aligned.
+- Avoid letting the kernel automatically migrate pages for latency-critical services unless measured to help.
+
+VERIFY
+Re-measure after each change, one change at a time, and compare local vs remote memory counters in numastat.

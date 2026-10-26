@@ -1,0 +1,24 @@
+RUNBOOK: TLS errors (x509: certificate has expired / signed by unknown authority / SAN mismatch)
+NOTE: Starter runbook written for this project from general operational practice. Verify details against your platform/version before acting in production.
+
+COMMON MESSAGES
+- "x509: certificate has expired or is not yet valid": expired certificate, or clock skew on the client or server (check with date and NTP).
+- "x509: certificate signed by unknown authority": the client does not trust the issuing CA or the server did not send the intermediate certificate.
+- "x509: certificate is valid for A, not B": the Subject Alternative Names (SAN) do not include the hostname or IP used.
+
+INSPECT A SERVER CERTIFICATE
+openssl s_client -connect <host>:<port> -servername <host> </dev/null | openssl x509 -noout -dates -subject -issuer -ext subjectAltName
+This prints notBefore/notAfter, subject, issuer and SANs. Use -showcerts to verify the chain is complete.
+
+KUBERNETES CONTROL PLANE CERTIFICATES
+- kubeadm certs check-expiration (run on a control-plane node) lists expiry for each component certificate. kubeadm-issued certificates are valid for 1 year by default and are renewed on control-plane upgrades.
+- Renewal: kubeadm certs renew all, then restart the control-plane static pods (kube-apiserver, controller-manager, scheduler, etcd). Plan this as a change, copy the updated admin kubeconfig, and verify the API server afterwards.
+- Kubelet client/server certificates normally rotate automatically when rotation is enabled; a node that was offline for a long time may need its CSRs approved: kubectl get csr.
+
+CERT-MANAGER
+kubectl get certificate -A, then kubectl describe certificate <name> -n <ns>, kubectl describe certificaterequest -n <ns> and check the Issuer/ClusterIssuer status and ACME challenges for the failure reason.
+
+FIXES
+- Renew or reissue the certificate; include every hostname/IP clients use in the SAN list.
+- Distribute the CA bundle to clients (for pods, mount it and point the app to it; for nodes, install it into the system trust store and runtime configuration).
+- Fix time synchronisation if certificates look "not yet valid".

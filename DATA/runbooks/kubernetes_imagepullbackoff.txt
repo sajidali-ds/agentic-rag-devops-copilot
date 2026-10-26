@@ -1,0 +1,21 @@
+RUNBOOK: ImagePullBackOff / ErrImagePull
+NOTE: Starter runbook written for this project from general operational practice. Verify details against your platform/version before acting in production.
+
+WHAT IT MEANS
+Kubelet cannot pull the container image. ErrImagePull is the first failure; ImagePullBackOff means kubelet is waiting before retrying (back-off up to 5 minutes).
+
+FIND THE EXACT ERROR
+kubectl describe pod <pod> -n <ns> and read the Events section. The message tells you which case applies.
+
+CASES
+- "manifest unknown" or "not found": the image name or tag is wrong or the tag does not exist. Check spelling, registry host and tag; avoid relying on :latest.
+- "pull access denied" / "unauthorized" / "authentication required": private registry without credentials. Create a docker-registry secret in the SAME namespace and reference it under imagePullSecrets in the pod spec or the ServiceAccount. Example: kubectl create secret docker-registry regcred --docker-server=<registry> --docker-username=<user> --docker-password=<token> -n <ns>.
+- "toomanyrequests": registry rate limit (for example anonymous Docker Hub pulls). Authenticate, use a pull-through cache or mirror the image to your registry.
+- "x509: certificate signed by unknown authority": the node does not trust the registry CA. Install the CA on nodes / container runtime configuration.
+- "no such host" or "i/o timeout" to the registry: DNS or egress/firewall problem from the node, not from the pod network. Test from the node itself.
+- Architecture mismatch ("no matching manifest for linux/arm64"): the image has no build for the node's CPU architecture.
+
+CHECKS
+- kubectl get pod <pod> -n <ns> -o jsonpath='{.spec.imagePullSecrets}'
+- kubectl get secret -n <ns>
+- On the node: crictl pull <image> reproduces the pull outside Kubernetes.
