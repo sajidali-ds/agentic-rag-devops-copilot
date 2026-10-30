@@ -21,14 +21,7 @@ An **agentic RAG** system that helps engineers diagnose real infrastructure prob
 | **Cost control** | Model tiering (fast model for routing/verification, strong model for the answer), caches, token accounting |
 | **Evaluation** | RAGAS on a golden set **plus** 12 behavioural scenarios with a pass-rate gate |
 | **Scalability** | Stateless API (history in Redis), Docker Compose, CI |
-
-| Architecture overview | Chat UI | Evaluation UI |
-| --- | --- | --- |
-| ![Architecture overview](DOCS/assets/architecture-overview.png) | ![Chat UI with sources](DOCS/assets/ui-chat.png) | ![Evaluation dashboard](DOCS/assets/evaluation-ui.png) |
-
-_(Screenshots are from the first version of the project; the chat UI now also shows agent steps, tool badges, cache status, command-safety review and 👍/👎 feedback.)_
-
----
+--
 
 ## 2. Main Components
 
@@ -505,17 +498,6 @@ The engineering task is to make every layer:
 
 ---
 
-## 19. Limitations / Next Steps
-
-**Honest status:** the code paths are unit-tested with fakes, but this version has **not yet been run against a live LLM / Qdrant / Redis / Langfuse** by the author of this change — run `python -m evals.scenario_eval` and the RAGAS evaluation first and treat those numbers as the real baseline. The built-in runbooks are starter content to be validated.
-
-* Semantic cache scans vectors in-process (fine for ~thousands of entries); move to a vector index for millions
-* Hybrid dense + sparse (BM25) retrieval, metadata filters, structure-aware chunking, OCR for scanned PDFs
-* Streaming responses (currently the full answer is returned after verification)
-* Real tool integrations behind explicit approval (read-only `kubectl`, Prometheus queries, log search) — today tools are pure functions and the agent never touches a cluster
-* Cost-per-query in currency (tokens are tracked; pricing is model-specific), Prometheus `/metrics` export, alerting
-* Auth beyond a shared API key (per-user keys / OIDC); rate limiting is per-instance (use a gateway or Redis for replicas)
-* Larger golden/scenario sets, human-eval calibration, scheduled eval runs with regression gates in CI
 
 ---
 ## 20. Project Summary
